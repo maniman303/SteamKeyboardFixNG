@@ -5,7 +5,7 @@ A simple C++ Skyrim SE/AE plugin using [CommonLibSSE NG](https://github.com/Char
 Workaround does NOT work in main menu, due to Steam login happening under the hood etc.
 
 ### Release
-TBD
+[Nexus Mods](https://www.nexusmods.com/skyrimspecialedition/mods/121957/)
 
 ### Build
 The `CMakeLists.txt` file has hardcoded path for SteamworksAPI header files.

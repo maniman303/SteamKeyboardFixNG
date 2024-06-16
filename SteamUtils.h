@@ -17,11 +17,22 @@ namespace logger = SKSE::log;
 namespace SteamWorkaround {
     ISteamUtils* steamUtils = NULL;
 
-    bool isInitialized = false;
     bool isLoaded = false;
 
-    const int loadCyclesMax = 300;
-    int loadCycles = 0;
+    bool initTextLengthSet = false;
+    uint32 initTextLength = 0;
+
+    typedef bool(WINAPI* SteamAPI_Init)();
+
+    SteamAPI_Init SteamAPIInit = NULL;
+
+    typedef ISteamUtils*(__stdcall* GetISteamUtils)(void);
+
+    GetISteamUtils ISteamUtilsConstructor = NULL;
+
+    typedef void(WINAPI* SteamAPI_ReleaseCurrentThreadMemory)();
+
+    SteamAPI_ReleaseCurrentThreadMemory ReleaseMemory = NULL;
 
     typedef void(WINAPI* SteamAPI_RunCallbacks)(void);
 
@@ -29,37 +40,31 @@ namespace SteamWorkaround {
 
     void DetourSteamAPI_RunCallbacks()
     {
-        if (steamUtils == NULL && fpSteamAPI_RunCallbacks != NULL) {
-            fpSteamAPI_RunCallbacks();
-            return;
-        }
-
         if (fpSteamAPI_RunCallbacks == NULL) {
             return;
-        }
-
-        if (isInitialized || steamUtils->GetEnteredGamepadTextLength() > 1) {
-            isInitialized = true;
-            fpSteamAPI_RunCallbacks();
-            return;
-        }
-
-        if (loadCycles < loadCyclesMax) {
-            loadCycles++;
-        }
-
-        if (!isLoaded && loadCycles >= loadCyclesMax) {
-            isLoaded = true;        
         }
 
         if (!isLoaded) {
             fpSteamAPI_RunCallbacks();
         }
+
+        auto utils = ISteamUtilsConstructor();
+        auto textLength = utils->GetEnteredGamepadTextLength();
+
+        logger::info("Text length: {0}", textLength);
+
+        if (!initTextLengthSet) {
+            initTextLength = textLength;
+            initTextLengthSet = true;
+        }
+
+        if (textLength != initTextLength) {
+            fpSteamAPI_RunCallbacks();
+            return;
+        }
+
+        ReleaseMemory();
     }
-
-    typedef bool(__stdcall* SteamAPI_Init)();
-
-    typedef ISteamUtils*(__stdcall* GetISteamUtils)();
 
     static void Init() {
         logger::info("Init Steam Keyboard workaround.");
@@ -73,34 +78,40 @@ namespace SteamWorkaround {
 
         logger::info("Steam Api handle found.");
 
-        auto steamAPI_Init = (SteamAPI_Init)GetProcAddress(handle, "SteamAPI_Init");
+        SteamAPIInit = (SteamAPI_Init)GetProcAddress(handle, "SteamAPI_Init");
 
-        if (steamAPI_Init == NULL) {
+        if (SteamAPIInit == NULL) {
             logger::info("SteamAPI_Init is NULL.");
             return;
         }
 
-        if (!steamAPI_Init()) {
+        if (!SteamAPIInit()) {
             logger::info("SteamAPI_Init returned false.");
             return;
         }
 
-        auto getISteamUtils = (GetISteamUtils)GetProcAddress(handle, "SteamAPI_SteamUtils_v010");
+        ReleaseMemory = (SteamAPI_ReleaseCurrentThreadMemory)GetProcAddress(handle, "SteamAPI_ReleaseCurrentThreadMemory");
 
-        if (getISteamUtils == NULL) {
+        if (ReleaseMemory == NULL) {
+            logger::info("SteamAPI_ReleaseCurrentThreadMemory is NULL.");
+            return;
+        }
+
+        ISteamUtilsConstructor = (GetISteamUtils)GetProcAddress(handle, "SteamAPI_SteamUtils_v010");
+
+        if (ISteamUtilsConstructor == NULL) {
             logger::info("GetISteamUtils is NULL.");
             return;
         }
 
-        steamUtils = getISteamUtils();
+        steamUtils = ISteamUtilsConstructor();
 
         if (steamUtils == NULL) {
             logger::info("SteamUtils not found.");
             return;
         }
 
-        if (!steamUtils->IsSteamInBigPictureMode())
-        {
+        if (!steamUtils->IsSteamInBigPictureMode()) {
             logger::info("Game is not running in Big Picture / Game Mode.");
             return;
         }
@@ -125,7 +136,7 @@ namespace SteamWorkaround {
     }
 
     static void SetIsLoaded() {
-        logger::info("Set workaroundas loaded.");
+        logger::info("Set workaround as loaded.");
         isLoaded = true;
     }
 }

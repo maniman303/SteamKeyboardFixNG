@@ -54,6 +54,7 @@ namespace SteamWorkaround {
         logger::info("Text length: {0}", textLength);
 
         if (!initTextLengthSet) {
+            logger::info("Using {0} as init text length.", textLength);
             initTextLength = textLength;
             initTextLengthSet = true;
         }

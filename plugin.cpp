@@ -27,7 +27,9 @@ typedef bool(__stdcall* SteamAPI_Init)();
 typedef ISteamUtils*(__stdcall* GetISteamUtils)();
 
 void OnMessage(SKSE::MessagingInterface::Message* message) {
-    if (message->type == SKSE::MessagingInterface::kPostLoadGame) {
+    if (message->type == SKSE::MessagingInterface::kInputLoaded) {
+        SteamWorkaround::Init();
+    } else if (message->type == SKSE::MessagingInterface::kPostLoadGame) {
         SteamWorkaround::SetIsLoaded();
     }
 }
@@ -37,8 +39,6 @@ SKSEPluginLoad(const LoadInterface* skse) {
 
     SetupLog();
     logger::info("Setup log...");
-
-    SteamWorkaround::Init();
 
     GetMessagingInterface()->RegisterListener(OnMessage);
 
